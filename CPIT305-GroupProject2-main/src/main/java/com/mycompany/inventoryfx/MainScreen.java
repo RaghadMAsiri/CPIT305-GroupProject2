@@ -3,6 +3,8 @@ package com.mycompany.inventoryfx;
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIcon;
 import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView;
 import javafx.collections.ObservableList;
+import javafx.collections.FXCollections;
+import javafx.collections.transformation.FilteredList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
@@ -22,17 +24,25 @@ import javafx.scene.layout.FlowPane;
 
 public class MainScreen {
 
-    private final String role;               // current user role ("Admin" or "User")
-    private BorderPane contentPane;          // center container where pages are swapped
-    private TableView<Product> table;        // products table on Products/Admin pages
+    private final String role;               // "Admin" or "User"/"Employee"
 
-    // Dashboard numbers
+    // Center container where pages are swapped
+    private BorderPane contentPane;
+
+    // Products table (Products page)
+    private TableView<Product> table;
+
+    // Dashboard texts (updated via refreshStats)
     private Text totalTxt, lowTxt, valueTxt, newestTxt;
 
-    // Sidebar buttons (track active for styling)
+    // Nav button refs + active tracking
     private Button btnDashboard, btnProducts, btnReports, btnAdmin, activeBtn;
 
-    // Sidebar button styles
+    // ---- NEW: Filtering controls for Products page ----
+    private TextField searchField;
+    private CheckBox lowOnlyCheck;
+
+    // Reusable styles for nav buttons
     private static final String NAV_BASE
             = "-fx-background-color: transparent; -fx-text-fill: white; -fx-font-size: 14px; -fx-font-weight: bold;";
     private static final String NAV_ACTIVE
@@ -42,18 +52,17 @@ public class MainScreen {
         this.role = role;
     }
 
-    // Launch the main window
     public void show() {
         Stage primaryStage = new Stage();
         primaryStage.setTitle("Inventory Manager");
 
         BorderPane mainLayout = new BorderPane();
 
-        // Left: sidebar navigation
+        // Sidebar
         VBox navBar = createNavBar();
         mainLayout.setLeft(navBar);
 
-        // Center: page container (we swap different pages here)
+        // Center container (we'll swap content here)
         contentPane = new BorderPane();
         contentPane.setPadding(new Insets(15));
         mainLayout.setCenter(contentPane);
@@ -67,7 +76,7 @@ public class MainScreen {
         primaryStage.show();
     }
 
-    // ===== Sidebar (logo + nav buttons + logout) =====
+    // ===================== Sidebar =====================
     private VBox createNavBar() {
         VBox navBar = new VBox(20);
         navBar.setPadding(new Insets(20));
@@ -78,12 +87,11 @@ public class MainScreen {
         logo.setFont(Font.font("Arial", FontWeight.BOLD, 22));
         logo.setFill(Color.WHITE);
 
-        // Main nav buttons
         btnDashboard = createNavButton("Dashboard", FontAwesomeIcon.HOME);
         btnProducts = createNavButton("Products", FontAwesomeIcon.CUBES);
         btnReports = createNavButton("Reports", FontAwesomeIcon.CLIPBOARD);
 
-        // Actions on click: swap center page + activate style
+        // Swap pages
         btnDashboard.setOnAction(e -> {
             contentPane.setCenter(buildDashboardPage());
             activate(btnDashboard);
@@ -99,8 +107,8 @@ public class MainScreen {
 
         navBar.getChildren().addAll(logo, new Separator(), btnDashboard, btnProducts, btnReports);
 
-        // Admin-only page
-        if (role.equalsIgnoreCase("Admin")) {
+        // Only show Admin Panel if role is Admin
+        if (role != null && role.equalsIgnoreCase("Admin")) {
             btnAdmin = createNavButton("Admin Panel", FontAwesomeIcon.USER_SECRET);
             btnAdmin.setOnAction(e -> {
                 contentPane.setCenter(buildAdminPage());
@@ -109,10 +117,12 @@ public class MainScreen {
             navBar.getChildren().add(btnAdmin);
         }
 
-        // Logout button (close main window and reopen LoginScreen)
+        // Logout button
         Button btnLogout = createNavButton("Logout", FontAwesomeIcon.SIGN_OUT);
         btnLogout.setOnAction(e -> {
+            // Close current window
             ((Stage) btnLogout.getScene().getWindow()).close();
+            // Reopen login screen
             try {
                 new LoginScreen().start(new Stage());
             } catch (Exception ex) {
@@ -126,7 +136,6 @@ public class MainScreen {
         return navBar;
     }
 
-    // Create a styled nav button with icon + hover effect
     private Button createNavButton(String text, FontAwesomeIcon iconName) {
         Button button = new Button(text);
         FontAwesomeIconView icon = new FontAwesomeIconView(iconName);
@@ -139,7 +148,7 @@ public class MainScreen {
         button.setMaxWidth(Double.MAX_VALUE);
         button.setStyle(NAV_BASE);
 
-        // Hover style only when not the active page
+        // Hover only if not active
         button.setOnMouseEntered(e -> {
             if (button != activeBtn) {
                 button.setStyle(NAV_ACTIVE);
@@ -154,7 +163,6 @@ public class MainScreen {
         return button;
     }
 
-    // Mark a sidebar button as active (style)
     private void activate(Button b) {
         if (activeBtn != null) {
             activeBtn.setStyle(NAV_BASE);
@@ -163,7 +171,6 @@ public class MainScreen {
         activeBtn = b;
     }
 
-    // Simple page header
     private HBox pageHeader(String title) {
         Label lbl = new Label(title);
         lbl.setStyle("-fx-font-size: 18px; -fx-font-weight: bold; -fx-text-fill: #2C3E50;");
@@ -173,21 +180,20 @@ public class MainScreen {
         return box;
     }
 
-    // ===== Dashboard Page (cards only) =====
+    // ===================== Dashboard Page =====================
     private BorderPane buildDashboardPage() {
         BorderPane pane = new BorderPane();
-        pane.setTop(new VBox(pageHeader("Dashboard")));
+        VBox top = new VBox(pageHeader("Dashboard"));
+        pane.setTop(top);
 
         FlowPane statsBar = createStatsBar();
         pane.setCenter(statsBar);
-
-        refreshStats(); // fill numbers from Product store
+        refreshStats(); // compute values based on Product store
         return pane;
     }
 
-    // Create 4 stat cards row
     private FlowPane createStatsBar() {
-        FlowPane stats = new FlowPane(20, 20);
+        FlowPane stats = new FlowPane(20, 20); // hgap, vgap
         stats.setPadding(new Insets(10, 0, 20, 0));
         stats.setAlignment(Pos.CENTER_LEFT);
 
@@ -205,7 +211,6 @@ public class MainScreen {
         return stats;
     }
 
-    // Build a single stat card
     private VBox makeCard(String title, Text valueText, FontAwesomeIcon iconName,
             String colorStart, String colorEnd) {
         VBox card = new VBox(8);
@@ -241,7 +246,6 @@ public class MainScreen {
 
         card.getChildren().addAll(topRow, valueText);
 
-        // Subtle hover animation
         card.setOnMouseEntered(e -> {
             card.setCursor(Cursor.HAND);
             card.setScaleX(1.02);
@@ -258,7 +262,6 @@ public class MainScreen {
         return card;
     }
 
-    // Update dashboard numbers from Product store
     private void refreshStats() {
         totalTxt.setText(String.valueOf(Product.totalCount()));
         lowTxt.setText(String.valueOf(Product.lowStockCount()));
@@ -266,126 +269,101 @@ public class MainScreen {
         newestTxt.setText(Product.newestItemName());
     }
 
-    // ===== Products Page (table + add/delete) =====
+    // ===================== Products Page (view-only with search/filter) =====================
     private BorderPane buildProductsPage() {
         BorderPane pane = new BorderPane();
 
-        // Top actions
-        Button addBtn = new Button("Add Product", new FontAwesomeIconView(FontAwesomeIcon.PLUS));
-        addBtn.setOnAction(e -> onAddProductDialog());
+        // Header
+        VBox header = new VBox(10, pageHeader("Products"));
+        header.setPadding(new Insets(0, 0, 5, 0));
 
-        Button delBtn = new Button("Delete Selected", new FontAwesomeIconView(FontAwesomeIcon.TRASH));
-        delBtn.setOnAction(e -> {
-            Product sel = table.getSelectionModel().getSelectedItem();
-            if (sel == null) {
-                warn("Please select a product to delete.");
-                return;
-            }
-            try {
-                Product.deleteById(sel.getId());
-                table.refresh();
-                refreshStats();
-            } catch (Exception ex) {
-                error(ex.getMessage());
-            }
-        });
+        // Filter bar
+        searchField = new TextField();
+        searchField.setPromptText("Search by ID or Name...");
+        lowOnlyCheck = new CheckBox("Low stock only");
 
-        HBox actions = new HBox(10, addBtn, delBtn);
-        actions.setAlignment(Pos.CENTER_LEFT);
+        HBox filterBar = new HBox(10, new Label("Filter:"), searchField, lowOnlyCheck);
+        filterBar.setAlignment(Pos.CENTER_LEFT);
 
-        // Table bound to the shared list
-        table = buildTableBoundTo(Product.all());
+        header.getChildren().add(filterBar);
+        pane.setTop(header);
 
-        // Optional row double-click
-        table.setRowFactory(tv -> {
-            TableRow<Product> row = new TableRow<>();
-            row.setOnMouseClicked(ev -> {
-                if (ev.getClickCount() == 2 && !row.isEmpty()) {
-                    info("Double-clicked: " + row.getItem().getName());
-                }
-            });
-            return row;
-        });
+        // Table (view-only)
+        table = buildTableBoundTo(Product.all()); // columns setup
+        table.getSelectionModel().setCellSelectionEnabled(false);
+        table.setEditable(false);
 
-        pane.setTop(new VBox(10, pageHeader("Products"), actions));
+        // Row highlight for low stock
+        installLowStockRowHighlight(table);
+
+        // Hook up filtering
+        setupFiltering();
+
         pane.setCenter(new ScrollPane(table));
         return pane;
     }
 
-    // Create a table and bind it to the given list
+    // Bind table to a filtered view of Product.all(), driven by search + checkbox
+    private void setupFiltering() {
+        FilteredList<Product> filtered = new FilteredList<>(Product.all(), p -> true);
+
+        Runnable apply = () -> {
+            String q = (searchField.getText() == null) ? "" : searchField.getText().trim().toLowerCase();
+            boolean lowOnly = lowOnlyCheck.isSelected();
+            int threshold = Product.getLowStockThreshold();
+
+            filtered.setPredicate(p -> {
+                boolean matches = q.isEmpty()
+                        || String.valueOf(p.getId()).contains(q)
+                        || p.getName().toLowerCase().contains(q);
+                boolean lowOk = !lowOnly || p.getQuantity() <= threshold;
+                return matches && lowOk;
+            });
+        };
+
+        searchField.textProperty().addListener((o, oldV, newV) -> apply.run());
+        lowOnlyCheck.selectedProperty().addListener((o, oldV, newV) -> apply.run());
+
+        apply.run();
+        table.setItems(filtered); // show filtered list
+    }
+
+    // Soft-highlight rows that are at/under the low-stock threshold
+    private void installLowStockRowHighlight(TableView<Product> tv) {
+        tv.setRowFactory(t -> new TableRow<>() {
+            @Override
+            protected void updateItem(Product p, boolean empty) {
+                super.updateItem(p, empty);
+                if (empty || p == null) {
+                    setStyle("");
+                } else {
+                    setStyle(p.getQuantity() <= Product.getLowStockThreshold()
+                            ? "-fx-background-color: #fff3cd;" // light amber
+                            : "");
+                }
+            }
+        });
+    }
+
+    // Build a basic table bound to the provided list (columns: ID, Name, Qty, Price)
     private TableView<Product> buildTableBoundTo(ObservableList<Product> list) {
         TableView<Product> tv = new TableView<>();
-
         TableColumn<Product, Integer> idCol = new TableColumn<>("ID");
         idCol.setCellValueFactory(cd -> cd.getValue().idProperty().asObject());
-
         TableColumn<Product, String> nameCol = new TableColumn<>("Name");
         nameCol.setCellValueFactory(cd -> cd.getValue().nameProperty());
         nameCol.setPrefWidth(220);
-
         TableColumn<Product, Integer> qtyCol = new TableColumn<>("Quantity");
         qtyCol.setCellValueFactory(cd -> cd.getValue().quantityProperty().asObject());
-
         TableColumn<Product, Double> priceCol = new TableColumn<>("Price");
         priceCol.setCellValueFactory(cd -> cd.getValue().priceProperty().asObject());
-
         tv.getColumns().addAll(idCol, nameCol, qtyCol, priceCol);
         tv.setItems(list);
         tv.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         return tv;
     }
 
-    // Modal dialog to add a new product
-    private void onAddProductDialog() {
-        Dialog<Product> dialog = new Dialog<>();
-        dialog.setTitle("Add Product");
-        ButtonType saveBtn = new ButtonType("Add", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(saveBtn, ButtonType.CANCEL);
-
-        GridPane g = new GridPane();
-        g.setHgap(10);
-        g.setVgap(10);
-        g.setPadding(new Insets(10));
-
-        TextField idF = new TextField();
-        idF.setPromptText("e.g., 1001");
-        TextField nameF = new TextField();
-        nameF.setPromptText("Name");
-        TextField qtyF = new TextField();
-        qtyF.setPromptText("e.g., 10");
-        TextField priceF = new TextField();
-        priceF.setPromptText("e.g., 2.5");
-
-        g.addRow(0, new Label("ID:"), idF);
-        g.addRow(1, new Label("Name:"), nameF);
-        g.addRow(2, new Label("Quantity:"), qtyF);
-        g.addRow(3, new Label("Price:"), priceF);
-
-        dialog.getDialogPane().setContent(g);
-
-        dialog.setResultConverter(bt -> {
-            if (bt == saveBtn) {
-                try {
-                    int id = Integer.parseInt(idF.getText().trim());
-                    String name = nameF.getText().trim();
-                    int qty = Integer.parseInt(qtyF.getText().trim());
-                    double price = Double.parseDouble(priceF.getText().trim());
-                    Product.add(id, name, qty, price);
-                    return new Product(id, name, qty, price); // value not used; add() already mutated store
-                } catch (Exception ex) {
-                    error(ex.getMessage());
-                }
-            }
-            return null;
-        });
-
-        dialog.showAndWait().ifPresent(ignored -> {
-            table.refresh();
-            refreshStats();
-        });
-    }
-
-    // ===== Reports Page (inline text report) =====
+    // ===================== Reports Page (inline) =====================
     private BorderPane buildReportsPage() {
         BorderPane pane = new BorderPane();
         pane.setPadding(new Insets(15));
@@ -413,19 +391,20 @@ public class MainScreen {
         HBox actions = new HBox(loadBtn);
         actions.setPadding(new Insets(10, 0, 0, 0));
 
-        pane.setTop(new VBox(10, pageHeader("Reports")));
+        VBox top = new VBox(10, pageHeader("Reports"));
+        pane.setTop(top);
         pane.setCenter(reportArea);
         pane.setBottom(actions);
         return pane;
     }
 
-    // ===== Admin Page (inline management tools) =====
+    // ===================== Admin Page (inline) =====================
     private BorderPane buildAdminPage() {
         BorderPane pane = new BorderPane();
         pane.setPadding(new Insets(15));
         pane.setTop(pageHeader("Admin Panel"));
 
-        // Left form: add/update/delete + threshold controls
+        // ------- Left: Form -------
         GridPane form = new GridPane();
         form.setHgap(10);
         form.setVgap(10);
@@ -454,9 +433,6 @@ public class MainScreen {
                         Integer.parseInt(qtyF.getText().trim()),
                         Double.parseDouble(priceF.getText().trim())
                 );
-                if (table != null) {
-                    table.refresh();
-                }
                 info("Added.");
                 idF.clear();
                 nameF.clear();
@@ -477,9 +453,6 @@ public class MainScreen {
                         Integer.parseInt(qtyF.getText().trim()),
                         Double.parseDouble(priceF.getText().trim())
                 );
-                if (table != null) {
-                    table.refresh();
-                }
                 info("Updated.");
                 idF.clear();
                 nameF.clear();
@@ -495,9 +468,6 @@ public class MainScreen {
         delBtn.setOnAction(e -> {
             try {
                 Product.deleteById(Integer.parseInt(idF.getText().trim()));
-                if (table != null) {
-                    table.refresh();
-                }
                 info("Deleted.");
                 idF.clear();
                 nameF.clear();
@@ -522,9 +492,6 @@ public class MainScreen {
         Button resetBtn = new Button("Reset Sample Data", new FontAwesomeIconView(FontAwesomeIcon.REFRESH));
         resetBtn.setOnAction(e -> {
             Product.resetSample();
-            if (table != null) {
-                table.refresh();
-            }
             refreshStats();
             info("Sample data restored.");
         });
@@ -533,9 +500,6 @@ public class MainScreen {
         clearBtn.setOnAction(e -> {
             if (confirm("Clear all products?")) {
                 Product.clearAll();
-                if (table != null) {
-                    table.refresh();
-                }
                 refreshStats();
                 info("All products cleared.");
             }
@@ -551,7 +515,7 @@ public class MainScreen {
         );
         left.setAlignment(Pos.TOP_LEFT);
 
-        // Right: admin table (same shared list) with row click to fill form
+        // ------- Right: Table (shared list) -------
         TableView<Product> adminTable = buildTableBoundTo(Product.all());
         adminTable.setRowFactory(tv -> {
             TableRow<Product> row = new TableRow<>();
@@ -573,7 +537,7 @@ public class MainScreen {
         return pane;
     }
 
-    // ===== Simple alert helpers =====
+    // ===================== Alerts =====================
     private void info(String msg) {
         new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK).showAndWait();
     }

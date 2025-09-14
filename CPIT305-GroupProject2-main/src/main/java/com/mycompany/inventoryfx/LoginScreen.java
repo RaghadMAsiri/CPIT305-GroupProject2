@@ -84,8 +84,8 @@ public class LoginScreen extends Application {
             if (user.equals("admin") && pass.equals("123")) {
                 new MainScreen("Admin").show();
                 primaryStage.close();
-            } else if (user.equals("user") && pass.equals("123")) {
-                new MainScreen("User").show();
+            } else if (user.equals("employee") && pass.equals("123")) {
+                new MainScreen("Employee").show();
                 primaryStage.close();
             } else {
                 new Alert(Alert.AlertType.ERROR, "Invalid login", ButtonType.OK).showAndWait();
