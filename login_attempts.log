@@ -1,0 +1,12 @@
+[2025-09-16T19:28:43.931726100] user=admin result=SUCCESS msg=Login ok (Admin)
+[2025-09-16T19:31:10.182656] user=admin result=FAIL msg=Invalid credentials
+[2025-09-16T19:32:43.783545] user=admin result=SUCCESS msg=Login ok (Admin)
+[2025-09-16T19:33:22.846913400] user=admin result=FAIL msg=Invalid credentials
+[2025-09-16T19:33:47.560250300] user=admin result=FAIL msg=Invalid credentials
+[2025-09-16T19:33:50.706082100] user=admin result=FAIL msg=LOCKED after failures
+[2025-09-16T19:35:44.530030400] user=admin result=FAIL msg=LOCKED(6s left)
+[2025-09-16T19:37:24.764169100] user=admin result=SUCCESS msg=Login ok (Admin)
+[2025-09-16T19:52:17.771192800] user=emp result=SUCCESS msg=Login ok (User)
+[2025-09-16T19:57:05.211458500] user=admin result=SUCCESS msg=Login ok (Admin)
+[2025-09-16T20:00:01.954413900] user=admin result=SUCCESS msg=Login ok (Admin)
+[2025-09-16T20:00:13.907265300] user=admin result=SUCCESS msg=Login ok (Admin)
